@@ -1059,7 +1059,7 @@ void jl_install_default_signal_handlers(void)
 
 #if defined(HAVE_MACH)
     allocate_mach_handler();
-#else
+#endif
     struct sigaction act;
     memset(&act, 0, sizeof(struct sigaction));
     sigemptyset(&act.sa_mask);
@@ -1068,7 +1068,6 @@ void jl_install_default_signal_handlers(void)
     if (sigaction(SIGUSR2, &act, NULL) < 0) {
         jl_errorf("fatal error: sigaction: %s", strerror(errno));
     }
-#endif
 
     allocate_segv_handler();
 

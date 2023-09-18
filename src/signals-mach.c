@@ -744,3 +744,40 @@ JL_DLLEXPORT void jl_profile_stop_timer(void)
 {
     running = 0;
 }
+
+// request:
+// -1: beginning processing [invalid outside here]
+//  0: nothing [not from here]
+//  1: get state
+//  2: throw sigint if `!defer_signal && io_wait` or if force throw threshold
+//     is reached
+//  3: raise `thread0_exit_signo` and try to exit
+static void usr2_handler(int sig, siginfo_t *info, void *ctx)
+{
+    jl_task_t *ct = jl_get_current_task();
+    if (ct == NULL)
+        return;
+    jl_ptls_t ptls = ct->ptls;
+    if (ptls == NULL)
+        return;
+    int errno_save = errno;
+    // acknowledge that we saw the signal_request
+    sig_atomic_t request = jl_atomic_exchange(&ptls->signal_request, 0);
+
+    printf("handler SIGUSR2 %d\n", request);
+
+    jl_atomic_exchange(&ptls->signal_request, 0); // returns -1
+    if (request == 2) {
+        int force = jl_check_force_sigint();
+        if (force || (!ptls->defer_signal && ptls->io_wait)) {
+            jl_safepoint_consume_sigint();
+            // Force a throw
+            if (force)
+                jl_safe_printf("WARNING: Force throwing a SIGINT\n");
+            jl_clear_force_sigint();
+            mach_port_t thread = pthread_mach_thread_np(ptls->system_id);
+            jl_throw_in_thread(ptls, thread, jl_interrupt_exception);
+        }
+    }
+    errno = errno_save;
+}

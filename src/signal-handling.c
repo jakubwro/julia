@@ -308,6 +308,7 @@ static void jl_check_profile_autostop(void)
 static _Atomic(int) handle_interrupt = 0;
 JL_DLLEXPORT void jl_schedule_interrupt_handler(void)
 {
+    //printf("scheduling");
     if (jl_atomic_exchange_relaxed(&handle_interrupt, 0) != 1)
         return;
     jl_task_t *handler = jl_atomic_load_relaxed(&jl_interrupt_handler);
