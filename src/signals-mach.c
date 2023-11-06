@@ -464,10 +464,6 @@ static void jl_deliver_handled_sigint(void)
 
     kern_return_t ret = thread_suspend(thread);
     HANDLE_MACH_ERROR("thread_suspend", ret);
-    
-    // This aborts `sleep` and other syscalls.
-    // ret = thread_abort_safely(thread);
-    // HANDLE_MACH_ERROR("thread_abort", ret);
 
     int force = jl_check_force_sigint();
     if (force || (!ptls2->defer_signal && ptls2->io_wait)) {
@@ -480,7 +476,6 @@ static void jl_deliver_handled_sigint(void)
     else {
         jl_wake_libuv();
     }
-    
     ret = thread_resume(thread);
     HANDLE_MACH_ERROR("thread_resume", ret);
 }
