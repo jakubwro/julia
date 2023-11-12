@@ -74,6 +74,7 @@
     XX(jl_ceil_llvm_withtype) \
     XX(jl_cglobal) \
     XX(jl_cglobal_auto) \
+    XX(jl_check_signal_pending) \
     XX(jl_checked_assignment) \
     XX(jl_clear_implicit_imports) \
     XX(jl_close_uv) \
@@ -399,6 +400,7 @@
     XX(jl_safepoint_suspend_thread) \
     XX(jl_safepoint_resume_thread) \
     XX(jl_SC_CLK_TCK) \
+    XX(jl_schedule_interrupt_handler) \
     XX(jl_set_ARGS) \
     XX(jl_set_const) \
     XX(jl_set_errno) \

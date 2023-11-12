@@ -2,8 +2,10 @@
 
 ## basic task functions and TLS
 
-Core.Task(@nospecialize(f), reserved_stack::Int=0) = Core._Task(f, reserved_stack, ThreadSynchronizer())
-
+function Core.Task(@nospecialize(f), reserved_stack::Int=0; interrupts = false)
+    new_f = if interrupts f else () -> disable_sigint(f) end
+    Core._Task(new_f, reserved_stack, Base.ThreadSynchronizer())
+end
 # Container for a captured exception and its backtrace. Can be serialized.
 struct CapturedException <: Exception
     ex::Any

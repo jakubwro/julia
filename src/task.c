@@ -623,6 +623,11 @@ JL_NO_ASAN static void ctx_switch(jl_task_t *lastt)
 
 JL_DLLEXPORT void jl_switch(void) JL_NOTSAFEPOINT_LEAVE JL_NOTSAFEPOINT_ENTER
 {
+    if (jl_check_signal_pending()) {
+        printf("signal is pending\n");
+        jl_schedule_interrupt_handler();
+    }
+
     jl_task_t *ct = jl_current_task;
     jl_ptls_t ptls = ct->ptls;
     jl_task_t *t = ptls->next_task;
@@ -1190,7 +1195,7 @@ JL_DLLEXPORT void jl_task_wait()
     jl_apply(&wait_func, 1);
     ct->world_age = last_age;
 }
-
+#endif
 JL_DLLEXPORT void jl_schedule_task(jl_task_t *task)
 {
     static jl_function_t *sched_func = NULL;
@@ -1204,7 +1209,6 @@ JL_DLLEXPORT void jl_schedule_task(jl_task_t *task)
     jl_apply(args, 2);
     ct->world_age = last_age;
 }
-#endif
 
 // Do one-time initializations for task system
 void jl_init_tasks(void) JL_GC_DISABLED
@@ -1671,6 +1675,9 @@ static char *jl_alloc_fiber(_jl_ucontext_t *t, size_t *ssize, jl_task_t *owner) 
 jl_task_t *jl_init_root_task(jl_ptls_t ptls, void *stack_lo, void *stack_hi)
 {
     assert(ptls->root_task == NULL);
+    // disable interrupts for roottask
+    ptls->defer_signal++;
+
     // We need `gcstack` in `Task` to allocate Julia objects; *including* the `Task` type.
     // However, to allocate a `Task` via `jl_gc_alloc` as done in `jl_init_root_task`,
     // we need the `Task` type itself. We use stack-allocated "raw" `jl_task_t` struct to

@@ -422,6 +422,17 @@ function run_main_repl(interactive::Bool, quiet::Bool, banner::Symbol, history_f
     # TODO cleanup REPL_MODULE_REF
     if !fallback_repl && interactive && isassigned(REPL_MODULE_REF)
         invokelatest(REPL_MODULE_REF[]) do REPL
+
+            # TODO: refactor this
+            interrupt_handler_task = Task(interrupt_handler_loop, 0; interrupts = true)
+            # interrupt_handler_task = Task(repl_interrupt_handler, 0; interrupts = true)
+
+            register_global_interrupt_handler(interrupt_handler_task)
+            Threads.schedule(interrupt_handler_task)
+            errormonitor(interrupt_handler_task)
+            # END of my changes
+
+
             term_env = get(ENV, "TERM", @static Sys.iswindows() ? "" : "dumb")
             term = REPL.Terminals.TTYTerminal(term_env, stdin, stdout, stderr)
             banner == :no || REPL.banner(term, short=banner==:short)
@@ -627,4 +638,161 @@ macro main(args...)
         global var"#__main_is_entrypoint__#"::Bool = true
     end)
     esc(:main)
+end
+
+function interrupt_handler_loop()
+    @info "Handler thread id is $(Threads.threadid())"
+
+    running = false
+
+    last_time = 0.0
+    while true
+        try
+            # Wait to be interrupted
+            wait()
+            # sleep(0.1)
+        catch err
+            if !(err isa InterruptException)
+                rethrow(err)
+            end
+            @info "handler triggered"
+            # Force-interrupt root task if two interrupts in quick succession (< 1s)
+            now_time = time()
+            diff_time = now_time - last_time
+            last_time = now_time
+            if diff_time < 1
+                if isdefined(Base, :active_repl_backend) && active_repl_backend.in_eval
+                    schedule(Base.roottask, InterruptException; error = true)
+                end
+            end
+
+            # Interrupt all handlers
+            try
+                lock(INTERRUPT_HANDLERS_LOCK) do
+                    if !isempty(INTERRUPT_HANDLERS)
+                        for handler in INTERRUPT_HANDLERS
+                            errormonitor(@async handler())
+                        end
+                    elseif isdefined(Base, :active_repl_backend) && active_repl_backend.in_eval
+                        schedule(Base.roottask, InterruptException; error = true)
+                    end
+                end
+            catch err
+                @show err
+            end
+        end
+    end
+
+    # while true
+    #     try
+    #         # sleep(0.333)
+    #         wait()
+    #     catch err
+    #         if err isa InterruptException
+    #             @info "Handling interrupt."
+    #             # TODO: if repl is executing something
+    #             if isdefined(Base, :active_repl_backend) && active_repl_backend.in_eval
+    #                 schedule(Base.roottask, InterruptException; error = true)
+    #             else
+    #                 @info "Run interrupt handlers here."
+    #             end
+    #         else
+    #             @error err
+    #             rethrow()
+    #         end
+    #     end
+    # end
+    @warn "Handler finished."
+end
+
+
+function repl_interrupt_handler()
+    invokelatest(REPL_MODULE_REF[]) do REPL
+        TerminalMenus = REPL.TerminalMenus
+
+        root_menu = TerminalMenus.RadioMenu(
+            [
+             "Interrupt all",
+             "Interrupt only...",
+             "Interrupt root task (REPL/script)",
+             "Ignore it",
+             "Stop handling interrupts",
+             "Exit Julia",
+             "Force-exit Julia",
+            ]
+        )
+
+        while true
+            try
+                # Wait to be interrupted
+                sleep(0.1)
+            catch err
+                if !(err isa InterruptException)
+                    rethrow(err)
+                end
+
+                # Display root menu
+                @label display_root
+                choice = TerminalMenus.request("Interrupt received, select an action:", root_menu)
+                if choice == 1
+                    @info "interrupt 1"
+                elseif choice == 2
+                    @info "interrupt 2"
+                    # Display modules menu
+                    # mods = lock(INTERRUPT_HANDLERS_LOCK) do
+                    #     collect(keys(INTERRUPT_HANDLERS))
+                    # end
+                    # mod_menu = TerminalMenus.RadioMenu(vcat(map(string, mods), "Go Back"))
+                    # @label display_mods
+                    # choice = TerminalMenus.request("Select a library to interrupt:", mod_menu)
+                    # if choice > length(mods) || choice == -1
+                    #     @goto display_root
+                    # else
+                    #     lock(INTERRUPT_HANDLERS_LOCK) do
+                    #         for handler in INTERRUPT_HANDLERS[mods[choice]]
+                    #             _throwto_interrupt!(handler)
+                    #         end
+                    #     end
+                    #     @goto display_mods
+                    # end
+                elseif choice == 3
+                    # Force-interrupt root task
+                    if isdefined(Base, :active_repl_backend) && active_repl_backend.in_eval
+                        schedule(Base.roottask, InterruptException; error = true)
+                    end
+                elseif choice == 4 || choice == -1
+                    # Do nothing
+                elseif choice == 5
+                    # Exit handler (caller will unregister us)
+                    return
+                elseif choice == 6
+                    # Exit Julia cleanly
+                    exit()
+                elseif choice == 7
+                    # Force an exit
+                    ccall(:abort, Cvoid, ())
+                end
+            end
+        end
+    end
+end
+
+
+const INTERRUPT_HANDLERS_LOCK = Threads.ReentrantLock()
+const INTERRUPT_HANDLERS = Vector{Function}()
+const INTERRUPT_HANDLER_RUNNING = Threads.Atomic{Bool}(false)
+
+function register_global_interrupt_handler(handler::Task)
+    handler_ptr = Base.pointer_from_objref(handler)
+    slot_ptr = cglobal(:jl_interrupt_handler, Ptr{Cvoid})
+    Intrinsics.atomic_pointerset(slot_ptr, handler_ptr, :release)
+end
+
+function register_interrupt_handler(handler::Function)
+    if ccall(:jl_generating_output, Cint, ()) == 1
+        throw(ConcurrencyViolationError("Interrupt handlers cannot be registered during precompilation.\nPlease register your handler later (possibly in your module's `__init__`)."))
+    end
+    lock(INTERRUPT_HANDLERS_LOCK) do
+        push!(INTERRUPT_HANDLERS, handler)
+    end
 end

@@ -807,6 +807,7 @@ static void *signal_listener(void *arg)
                 critical = 1;
             }
             else {
+                // TODO: set flag that should schedule interrupt handler
                 jl_try_deliver_sigint();
                 continue;
             }

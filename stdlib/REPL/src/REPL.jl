@@ -430,6 +430,7 @@ function run_frontend(repl::BasicREPL, backend::REPLBackendRef)
     dopushdisplay && pushdisplay(d)
     hit_eof = false
     while true
+        
         Base.reseteof(repl.terminal)
         write(repl.terminal, JULIA_PROMPT)
         line = ""
@@ -459,6 +460,7 @@ function run_frontend(repl::BasicREPL, backend::REPLBackendRef)
         end
         if !isempty(line)
             response = eval_with_backend(ast, backend)
+            # TODO: edge triggered notification that backend finished.
             print_response(repl, response, !ends_with_semicolon(line), false)
         end
         write(repl.terminal, '\n')
