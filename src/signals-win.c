@@ -221,8 +221,7 @@ static BOOL WINAPI sigint_handler(DWORD wsig) //This needs winapi types to guara
     if (!jl_ignore_sigint()) {
         if (exit_on_sigint)
             jl_exit(128 + sig); // 128 + SIGINT
-        if (!want_interrupt_handler())
-            jl_try_deliver_sigint();
+        jl_try_deliver_sigint();
     }
     return 1;
 }

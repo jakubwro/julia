@@ -508,7 +508,6 @@
     XX(jl_ver_string) \
     XX(jl_vexceptionf) \
     XX(jl_vprintf) \
-    XX(jl_wake_thread) \
     XX(jl_wakeup_thread) \
     XX(jl_write_compiler_output) \
     XX(jl_yield) \
