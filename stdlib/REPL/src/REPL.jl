@@ -103,13 +103,14 @@ mutable struct REPLBackend
     response_channel::Channel{Any}
     "flag indicating the state of this backend"
     in_eval::Bool
+    eval_done_cond::Threads.Condition
     "transformation functions to apply before evaluating expressions"
     ast_transforms::Vector{Any}
     "current backend task"
     backend_task::Task
 
     REPLBackend(repl_channel, response_channel, in_eval, ast_transforms=copy(repl_ast_transforms)) =
-        new(repl_channel, response_channel, in_eval, ast_transforms)
+        new(repl_channel, response_channel, in_eval, Threads.Condition(), ast_transforms)
 end
 REPLBackend() = REPLBackend(Channel(1), Channel(1), false)
 
@@ -165,7 +166,10 @@ function eval_user_input(@nospecialize(ast), backend::REPLBackend, mod::Module)
                     ast = Base.invokelatest(xf, ast)
                 end
                 value = Core.eval(mod, ast)
+                lock(backend.eval_done_cond)
                 backend.in_eval = false
+                notify(backend.eval_done_cond)
+                unlock(backend.eval_done_cond)
                 setglobal!(Base.MainInclude, :ans, value)
                 put!(backend.response_channel, Pair{Any, Bool}(value, false))
             end

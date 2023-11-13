@@ -80,10 +80,8 @@ end
 
 function _throwto_interrupt!(task::Task)
     if task.state == :runnable
-        task._isexception = true
-        task.result = InterruptException()
         try
-            schedule(task)
+            schedule(task, InterruptException(); error = true)
         catch
         end
     end
@@ -139,7 +137,7 @@ function simple_interrupt_handler_checked()
 end
 function start_simple_interrupt_handler(; force::Bool=false)
     if (Threads.atomic_cas!(INTERRUPT_HANDLER_RUNNING, false, true) == false) || force
-        simple_interrupt_handler_task = errormonitor(Threads.@spawn simple_interrupt_handler_checked())
+        simple_interrupt_handler_task = errormonitor(@async simple_interrupt_handler_checked())
         _register_global_interrupt_handler(simple_interrupt_handler_task)
     end
 end
@@ -173,7 +171,33 @@ function repl_interrupt_handler()
 
                 # Display root menu
                 @label display_root
-                choice = TerminalMenus.request("Interrupt received, select an action:", root_menu)
+                choice_made_or_repl_evaluated_cond = Condition()
+                choice_task = @async begin
+                    choice = TerminalMenus.request("Interrupt received, select an action:", root_menu)
+                    notify(choice_made_or_repl_evaluated_cond)
+                    choice
+                end
+
+                wait_repl_task = @async begin
+                    @lock Base.active_repl_backend.eval_done_cond begin
+                        while(Base.active_repl_backend.in_eval)
+                            wait(Base.active_repl_backend.eval_done_cond)
+                        end
+                    end
+                    notify(choice_made_or_repl_evaluated_cond)
+                end
+                if !istaskdone(choice_task) && !istaskdone(wait_repl_task)
+                    wait(choice_made_or_repl_evaluated_cond)
+                end
+
+                if istaskdone(wait_repl_task) && !istaskdone(choice_task)
+                    _throwto_interrupt!(choice_task)
+                    continue
+                end
+
+                wait(choice_task)
+                choice = choice_task.result
+
                 if choice == 1
                     lock(INTERRUPT_HANDLERS_LOCK) do
                         for mod in keys(INTERRUPT_HANDLERS)
@@ -204,7 +228,12 @@ function repl_interrupt_handler()
                     end
                 elseif choice == 3
                     # Force-interrupt root task
-                    _throwto_interrupt!(Base.roottask)
+                    if Base.active_repl_backend.in_eval
+                        _throwto_interrupt!(Base.roottask)
+                    else
+                        @info "REPL task finished in a meanwhile."
+                    end
+                    # @info "done"
                 elseif choice == 4 || choice == -1
                     # Do nothing
                 elseif choice == 5
@@ -237,7 +266,7 @@ function repl_interrupt_handler_checked()
 end
 function start_repl_interrupt_handler(; force::Bool=false)
     if (Threads.atomic_cas!(INTERRUPT_HANDLER_RUNNING, false, true) == false) || force
-        repl_interrupt_handler_task = errormonitor(Threads.@spawn repl_interrupt_handler_checked())
+        repl_interrupt_handler_task = errormonitor(@async repl_interrupt_handler_checked())
         _register_global_interrupt_handler(repl_interrupt_handler_task)
     end
 end

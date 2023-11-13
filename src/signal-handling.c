@@ -303,6 +303,22 @@ static void jl_check_profile_autostop(void)
     }
 }
 
+JL_DLLEXPORT void jl_schedule_interrupt_handler(void)
+{
+    jl_task_t *handler = jl_atomic_load_relaxed(&jl_interrupt_handler);
+    if (!handler) {
+        return;
+    }
+    assert(jl_is_task(handler));
+    if (jl_atomic_load_relaxed(&handler->_state) != JL_TASK_STATE_RUNNABLE) {
+        return;
+    }
+    jl_safepoint_consume_sigint();
+    handler->result = jl_interrupt_exception;
+    jl_atomic_store_relaxed(&handler->_isexception, 1);
+    jl_schedule_task(handler);
+}
+
 #if defined(_WIN32)
 #include "signals-win.c"
 #else
