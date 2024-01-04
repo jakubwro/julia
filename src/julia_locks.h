@@ -7,6 +7,9 @@
 extern "C" {
 #endif
 
+extern JL_DLLIMPORT _Atomic(jl_task_t*) jl_interrupt_handler JL_GLOBALLY_ROOTED;
+extern JL_DLLIMPORT sig_atomic_t jl_global_defer_signal;
+
 // Lock acquire and release primitives
 
 // JL_LOCK and jl_mutex_lock are GC safe points, use uv_mutex_t if that is not desired.
@@ -42,22 +45,22 @@ static inline void jl_mutex_lock_nogc(jl_mutex_t *lock) JL_NOTSAFEPOINT JL_NOTSA
         jl_current_task->ptls->defer_signal++;  \
         jl_signal_fence();                      \
     } while (0)
-#define JL_SIGATOMIC_END() do {                                 \
-        jl_signal_fence();                                      \
-        if (--jl_current_task->ptls->defer_signal == 0) {       \
-            jl_sigint_safepoint(jl_current_task->ptls);         \
-        }                                                       \
+#define JL_SIGATOMIC_END() do {                                                       \
+        jl_signal_fence();                                                            \
+        if (--jl_current_task->ptls->defer_signal == 0 && !jl_global_defer_signal) {  \
+            jl_sigint_safepoint(jl_current_task->ptls);                               \
+        }                                                                             \
     } while (0)
 
 #define JL_SIGATOMIC_BEGIN_self() do {          \
         self->ptls->defer_signal++;             \
         jl_signal_fence();                      \
     } while (0)
-#define JL_SIGATOMIC_END_self() do {            \
-        jl_signal_fence();                      \
-        if (--self->ptls->defer_signal == 0) {  \
-            jl_sigint_safepoint(self->ptls);    \
-        }                                       \
+#define JL_SIGATOMIC_END_self() do {                                       \
+        jl_signal_fence();                                                 \
+        if (--self->ptls->defer_signal == 0 && !jl_global_defer_signal) {  \
+            jl_sigint_safepoint(self->ptls);                               \
+        }                                                                  \
     } while (0)
 
 static inline void jl_mutex_lock(jl_mutex_t *lock)

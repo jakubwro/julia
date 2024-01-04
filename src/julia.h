@@ -2164,6 +2164,7 @@ JL_DLLEXPORT void jl_yield(void);
 
 // async signal handling ------------------------------------------------------
 
+JL_DLLEXPORT sig_atomic_t jl_check_signal_pending(void);
 JL_DLLEXPORT void jl_install_sigint_handler(void);
 JL_DLLEXPORT void jl_sigatomic_begin(void);
 JL_DLLEXPORT void jl_sigatomic_end(void);

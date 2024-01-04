@@ -545,7 +545,7 @@ void usr2_handler(int sig, siginfo_t *info, void *ctx)
     jl_atomic_exchange(&ptls->signal_request, 0); // returns -1
     if (request == 2) {
         int force = jl_check_force_sigint();
-        if (force || (!ptls->defer_signal && ptls->io_wait)) {
+        if (force || (!ptls->defer_signal && ptls->io_wait && !jl_global_defer_signal)) {
             jl_safepoint_consume_sigint();
             if (force)
                 jl_safe_printf("WARNING: Force throwing a SIGINT\n");

@@ -48,7 +48,7 @@ static void jl_try_throw_sigint(void)
     jl_safepoint_enable_sigint();
     jl_wake_libuv();
     int force = jl_check_force_sigint();
-    if (force || (!ct->ptls->defer_signal && ct->ptls->io_wait)) {
+    if (force || (!ct->ptls->defer_signal && ct->ptls->io_wait && !jl_global_defer_signal)) {
         jl_safepoint_consume_sigint();
         if (force)
             jl_safe_printf("WARNING: Force throwing a SIGINT\n");
@@ -178,7 +178,7 @@ static void jl_try_deliver_sigint(void)
     }
     jl_unlock_profile();
     int force = jl_check_force_sigint();
-    if (force || (!ptls2->defer_signal && ptls2->io_wait)) {
+    if (force || (!ptls2->defer_signal && ptls2->io_wait && !jl_global_defer_signal)) {
         jl_safepoint_consume_sigint();
         if (force)
             jl_safe_printf("WARNING: Force throwing a SIGINT\n");
@@ -254,7 +254,7 @@ LONG WINAPI jl_exception_handler(struct _EXCEPTION_POINTERS *ExceptionInfo)
                 // Do not raise sigint on worker thread
                 if (ptls->tid != 0)
                     return EXCEPTION_CONTINUE_EXECUTION;
-                if (ptls->defer_signal) {
+                if (ptls->defer_signal || jl_global_defer_signal) {
                     jl_safepoint_defer_sigint();
                 }
                 else if (jl_safepoint_consume_sigint()) {
