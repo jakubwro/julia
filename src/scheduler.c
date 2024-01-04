@@ -427,6 +427,8 @@ JL_DLLEXPORT jl_task_t *jl_task_get_next(jl_value_t *trypoptask, jl_value_t *q, 
     uint64_t start_cycles = 0;
 
     while (1) {
+        jl_notify_interrupt_handler();
+
         jl_task_t *task = get_next_task(trypoptask, q);
         if (task)
             return task;

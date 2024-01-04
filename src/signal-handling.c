@@ -309,6 +309,20 @@ static void jl_check_profile_autostop(void)
     }
 }
 
+// Check if there is pending interrupt signal. If so consume it and notify
+// condition that interrupt handler is supposed to be waiting on.
+JL_DLLEXPORT void jl_notify_interrupt_handler(void)
+{
+    if (jl_interrupt_async_condition == NULL) {
+        return;
+    }
+    if(jl_safepoint_consume_sigint())
+    {
+        jl_clear_force_sigint();
+        uv_async_send(jl_interrupt_async_condition);
+    }
+}
+
 #if defined(_WIN32)
 #include "signals-win.c"
 #else

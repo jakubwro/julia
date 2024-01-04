@@ -297,7 +297,7 @@ JL_DLLEXPORT void jl_eh_restore_state(jl_handler_t *eh)
         jl_atomic_store_release(&ct->ptls->gc_state, eh->gc_state);
     if (!old_gc_state || !eh->gc_state) // it was or is unsafe now
         jl_gc_safepoint_(ct->ptls);
-    if (old_defer_signal && !eh->defer_signal)
+    if (old_defer_signal && !eh->defer_signal && !jl_global_defer_signal)
         jl_sigint_safepoint(ct->ptls);
     if (jl_atomic_load_relaxed(&jl_gc_have_pending_finalizers) &&
             unlocks && eh->locks_len == 0) {
