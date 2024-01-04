@@ -49,6 +49,7 @@ JL_DLLEXPORT _Atomic(uint8_t) jl_measure_compile_time_enabled = 0;
 JL_DLLEXPORT _Atomic(uint64_t) jl_cumulative_compile_time = 0;
 JL_DLLEXPORT _Atomic(uint64_t) jl_cumulative_recompile_time = 0;
 JL_DLLIMPORT sig_atomic_t jl_global_defer_signal = 0;
+JL_DLLIMPORT _Atomic(uv_async_t*) jl_interrupt_async_condition = NULL;
 
 JL_DLLEXPORT void *jl_get_ptls_states(void)
 {

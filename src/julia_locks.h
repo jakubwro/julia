@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern JL_DLLIMPORT _Atomic(jl_task_t*) jl_interrupt_handler JL_GLOBALLY_ROOTED;
+extern JL_DLLIMPORT _Atomic(uv_async_t*) jl_interrupt_async_condition;
 extern JL_DLLIMPORT sig_atomic_t jl_global_defer_signal;
 
 // Lock acquire and release primitives

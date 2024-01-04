@@ -19,9 +19,6 @@ extern "C" {
 // 1: at least one sigint is pending, only the sigint page is enabled.
 // 2: at least one sigint is pending, both safepoint pages are enabled.
 JL_DLLEXPORT sig_atomic_t jl_signal_pending = 0;
-JL_DLLEXPORT sig_atomic_t jl_check_signal_pending(void) {
-     return jl_signal_pending;
- }
 _Atomic(uint32_t) jl_gc_running = 0;
 char *jl_safepoint_pages = NULL;
 // The number of safepoints enabled on the three pages.

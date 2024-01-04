@@ -3201,8 +3201,6 @@ static void gc_mark_roots(jl_gc_markqueue_t *mq)
     gc_heap_snapshot_record_gc_roots((jl_value_t*)jl_global_roots_list, "global_roots_list");
     gc_try_claim_and_push(mq, jl_global_roots_keyset, NULL);
     gc_heap_snapshot_record_gc_roots((jl_value_t*)jl_global_roots_keyset, "global_roots_keyset");
-    gc_try_claim_and_push(mq, (jl_value_t*)jl_interrupt_handler, NULL);
-    gc_heap_snapshot_record_gc_roots((jl_value_t*)jl_interrupt_handler, "jl_interrupt_handler");
 }
 
 // find unmarked objects that need to be finalized from the finalizer list "list".

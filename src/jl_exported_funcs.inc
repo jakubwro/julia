@@ -81,7 +81,6 @@
     XX(jl_ceil_llvm_withtype) \
     XX(jl_cglobal) \
     XX(jl_cglobal_auto) \
-    XX(jl_check_signal_pending) \
     XX(jl_checked_assignment) \
     XX(jl_clear_implicit_imports) \
     XX(jl_close_uv) \
@@ -356,6 +355,7 @@
     XX(jl_new_typevar) \
     XX(jl_next_from_addrinfo) \
     XX(jl_normalize_to_compilable_sig) \
+    XX(jl_notify_interrupt_handler) \
     XX(jl_write_precompile_statement) \
     XX(jl_no_exc_handler) \
     XX(jl_object_id) \
@@ -410,7 +410,6 @@
     XX(jl_safepoint_suspend_thread) \
     XX(jl_safepoint_resume_thread) \
     XX(jl_SC_CLK_TCK) \
-    XX(jl_schedule_interrupt_handler) \
     XX(jl_set_ARGS) \
     XX(jl_set_const) \
     XX(jl_set_errno) \

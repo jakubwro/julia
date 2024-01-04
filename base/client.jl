@@ -629,51 +629,47 @@ macro main(args...)
     esc(:main)
 end
 
-function interrupt_handler_loop()
+const INTERRUPT_CONDITION = Threads.Condition()
+
+function interrupt_handler_loop(cond::Base.AsyncCondition)
     @info "Handler thread id is $(Threads.threadid())"
 
     running = false
 
     last_time = 0.0
     while true
-        try
-            # Wait to be interrupted
-            @info "waiting for interrupt"
-            wait()
-            # sleep(0.1)
-        catch err
-            if !(err isa InterruptException)
-                rethrow(err)
+        # Wait to be interrupted
+        @info "waiting for interrupt"
+        wait(cond)
+        # sleep(0.1)
+        @info "handler triggered"
+        # Force-interrupt root task if two interrupts in quick succession (< 1s)
+        now_time = time()
+        diff_time = now_time - last_time
+        last_time = now_time
+        if diff_time < 1
+            @show "interrupting REPL"
+            if isdefined(Base, :active_repl_backend) && Base.active_repl_backend.in_eval
+                schedule(Base.roottask, InterruptException; error = true)
             end
-            @info "handler triggered"
-            # Force-interrupt root task if two interrupts in quick succession (< 1s)
-            now_time = time()
-            diff_time = now_time - last_time
-            last_time = now_time
-            if diff_time < 1
-                @show "interrupting REPL"
-                if isdefined(Base, :active_repl_backend) && Base.active_repl_backend.in_eval
-                    schedule(Base.roottask, InterruptException; error = true)
-                end
-            end
+        end
 
-            # Invoke all handlers.
-            try
-                @lock INTERRUPT_HANDLER_LOCK begin
-                    if !isempty(INTERRUPT_HANDLERS)
-                        @sync for handler in INTERRUPT_HANDLERS
-                            # @async Base.invokelatest(handler)
-                            Base.invokelatest(handler)
-                        end
-                    # elseif isdefined(Base, :active_repl_backend) && Base.active_repl_backend.in_eval
-                        # schedule(Base.roottask, InterruptException; error = true)
-                    else
-                        @error "Interrupt exception received but no handler defined."
+        # Invoke all handlers.
+        try
+            @lock INTERRUPT_HANDLER_LOCK begin
+                if !isempty(INTERRUPT_HANDLERS)
+                    for handler in INTERRUPT_HANDLERS
+                        # @async Base.invokelatest(handler)
+                        Base.invokelatest(handler)
                     end
+                # elseif isdefined(Base, :active_repl_backend) && Base.active_repl_backend.in_eval
+                    # schedule(Base.roottask, InterruptException; error = true)
+                else
+                    @error "Interrupt exception received but no handler defined."
                 end
-            catch err
-                @show err
             end
+        catch err
+            @show err
         end
     end
 
@@ -684,17 +680,17 @@ const INTERRUPT_HANDLER_LOCK = Threads.ReentrantLock()
 const INTERRUPT_HANDLER_RUNNING = Threads.Atomic{Bool}(false)
 const INTERRUPT_HANDLERS = Vector{Function}()
 
-function _register_global_interrupt_handler(handler::Task)
+function _register_global_interrupt_handler()
+    root_cond = Base.AsyncCondition()
+    t = @async interrupt_handler_loop(root_cond)
+    async_cond_ptr = cglobal(:jl_interrupt_async_condition, Ptr{Cvoid})
+    Base.Intrinsics.atomic_pointerset(async_cond_ptr, root_cond.handle, :release)
     global_defer_signal_ptr = cglobal(:jl_global_defer_signal, Int)
     Base.Intrinsics.atomic_pointerset(global_defer_signal_ptr, 1, :release)
-    handler_ptr = Base.pointer_from_objref(handler)
-    slot_ptr = cglobal(:jl_interrupt_handler, Ptr{Cvoid})
-    Intrinsics.atomic_pointerset(slot_ptr, handler_ptr, :release)
+    handler_ptr = Base.pointer_from_objref(t)
     nothing
 end
 function _unregister_global_interrupt_handler()
-    slot_ptr = cglobal(:jl_interrupt_handler, Ptr{Cvoid})
-    Intrinsics.atomic_pointerset(slot_ptr, C_NULL, :release)
     global_defer_signal_ptr = cglobal(:jl_global_defer_signal, Int)
     Base.Intrinsics.atomic_pointerset(global_defer_signal_ptr, 0, :release)
     nothing
