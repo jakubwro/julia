@@ -486,6 +486,10 @@ function Base.Timer(delay::Period; interval::Period=Second(0))
     Timer(seconds(delay), interval=seconds(interval))
 end
 
+function Base.Timer(cb::Function, delay::Period; interval::Period=Second(0))
+    Timer(cb, seconds(delay), interval=seconds(interval))
+end
+
 function Base.timedwait(testcb, timeout::Period; pollint::Period=Millisecond(100))
     timedwait(testcb, seconds(timeout), pollint=seconds(pollint))
 end
